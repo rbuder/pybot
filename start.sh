@@ -1,3 +1,3 @@
 #!/usr/bin/env sh
 
-python main.py
+python main.py --token $TOKEN

@@ -6,6 +6,7 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 from yaml import load
+from argparse import ArgumentParser
 
 class Pybot:
     __updater = None
@@ -47,8 +48,15 @@ try:
 except:
     from yaml import Loader
 
-with open('config.yml', 'r') as f:
-    data = load(f, Loader=Loader)
+parser = ArgumentParser(description="This is here mostly for Docker :)")
+parser.add_argument('--token', metavar='T', type=str, help='The telegram API token')
+args = parser.parse_args()
+
+if args.token:
+    data = {'token': args.token}
+else:
+    with open('config.yml', 'r') as f:
+        data = load(f, Loader=Loader)
 pybot = Pybot()
 pybot.setUpdater(data['token'])
 pybot.setDispatcher(pybot.getUpdater())
