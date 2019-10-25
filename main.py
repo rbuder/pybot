@@ -5,6 +5,8 @@ from telegram.ext import Updater, CommandHandler
 from logging import getLogger
 logger = getLogger(__name__)
 
+from yaml import load
+
 class Pybot:
     __updater = None
     __dispatcher = None
@@ -40,7 +42,14 @@ class Pybot:
         self.__dispatcher.add_handler(uptime_handler)
         self.__updater.start_polling()
 
+try:
+    from yaml import CLoader as Loader
+except:
+    from yaml import Loader
+
+with open('config.yml', 'r') as f:
+    data = load(f, Loader=Loader)
 pybot = Pybot()
-pybot.setUpdater('TOKEN')
+pybot.setUpdater(data['token'])
 pybot.setDispatcher(pybot.getUpdater())
 pybot.run()
