@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
 from telegram.ext import Updater, CommandHandler
-import sys
+import sys, random, string
 from logging import getLogger, DEBUG, WARNING, INFO, basicConfig
 logger = getLogger(__name__)
-
 
 from yaml import load
 from argparse import ArgumentParser
@@ -24,6 +23,13 @@ class Pybot:
     __dispatcher = None
     __devices = None
 
+    __secret = None
+    __locked = True
+
+    def __init__(self):
+        # Create a random secret
+        self.__secret = ''.join(random.choice(string.ascii_lowercase) for i in range(10))
+
     def setUpdater(self, token):
         self.__updater = Updater(token=token, use_context=True)
 
@@ -36,10 +42,21 @@ class Pybot:
     def getDispatcher(self):
         return self.__dispatcher
 
+    def getSecret(self):
+        return self.__secret
+
     @logWrap
     def start(self, update, context):
-        message="Hi, I'm a bot. Type /help for /help"
-        self.respond(update, context, message)
+        message="Hi, I'm a bot. Tell me a secret!"
+        logger.debug('Update: {}'.format(update))
+        logger.debug('Context: {}'.format(context))
+        logger.debug('Response: {}'.format(message))
+        context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+
+    def secret(self, update, context):
+        secret = update.message.text.replace('/secret','').strip()
+        if secret == self.__secret:
+            self.__locked = False
 
     @logWrap
     def help(self, update, context):
@@ -76,10 +93,16 @@ class Pybot:
 
     # helper function to make logging ever so slightly easier
     def respond(self, update, context, message):
-        logger.debug('Update: {}'.format(update))
-        logger.debug('Context: {}'.format(context))
-        logger.debug('Response: {}'.format(message))
-        context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+        if not self.__locked:
+            logger.debug('Update: {}'.format(update))
+            logger.debug('Context: {}'.format(context))
+            logger.debug('Response: {}'.format(message))
+            context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+        else:
+            logger.info('Bot is locked but someone tried to talk to me')
+            logger.debug('Update: {}'.format(update))
+            logger.debug('Context: {}'.format(context))
+            logger.debug('Response: {}'.format(message))
 
     @logWrap
     def run(self):
@@ -89,12 +112,14 @@ class Pybot:
         getswitchstate_handler = CommandHandler('getswitchstate', self.getSwitchState)
         toggleswitch_handler = CommandHandler('toggleswitch', self.toggleSwitch)
         switches_handler = CommandHandler('switches', self.switches)
+        secret_handler = CommandHandler('secret', self.secret)
         self.__dispatcher.add_handler(start_handler)
         self.__dispatcher.add_handler(help_handler)
         self.__dispatcher.add_handler(uptime_handler)
         self.__dispatcher.add_handler(toggleswitch_handler)
         self.__dispatcher.add_handler(getswitchstate_handler)
         self.__dispatcher.add_handler(switches_handler)
+        self.__dispatcher.add_handler(secret_handler)
         self.__updater.start_polling()
 
 try:
@@ -125,6 +150,7 @@ if args.loglevel:
 if args.verbose:
     basicConfig(stream=sys.stdout)
 pybot = Pybot()
+logger.info(pybot.getSecret())
 pybot.setUpdater(data['token'])
 pybot.setDispatcher(pybot.getUpdater())
 pybot.run()
