@@ -36,7 +36,7 @@ class DeviceManager:
         except Exception as e:
             return e
 
-    def powerOfByName(self, name):
+    def powerOnByName(self, name):
         dev = self.getDeviceByName(name)
         try:
             return dev.on()
