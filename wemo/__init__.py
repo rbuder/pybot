@@ -3,4 +3,4 @@
 from .devicemanager import DeviceManager
 
 devicemanager = DeviceManager()
-devicemanager.discoveryWemoDevices()
+devicemanager.discoverWemoDevices()
