@@ -31,12 +31,19 @@ def uptime(message):
     message.reply(response)
 
 @logWrap
+@respond_to('rescan')
+def rescan(message):
+    devicemanager.discoverWemoDevices()
+    response = '\n'.join(devicemanager.listDevicesByName())
+    message.reply(response)
+
+@logWrap
 @respond_to('switchstate (.*)')
 def getSwitchState(message, switch):
     switchname = switch.strip()
     switchstate = devicemanager.getStateByName(switchname)
-    reponse = '{} is {}'.format(switchname, switchstate)
-    message.reply(reponse)
+    response = '{} is {}'.format(switchname, switchstate)
+    message.reply(response)
 
 @logWrap
 @respond_to('toggleswitch (.*)')
@@ -65,7 +72,7 @@ parser.add_argument('--loglevel', metavar='l', type=str, help='Log Level [INFO, 
 parser.add_argument('--verbose', action='store_true', help='Log to stdout')
 args = parser.parse_args()
 
-with open('config.yml', 'r') as f:
+with open('./config/config.yml', 'r') as f:
     data = load(f, Loader=Loader)
 
 if args.loglevel:
