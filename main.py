@@ -1,126 +1,59 @@
 #!/usr/bin/env python
 
-from telegram.ext import Updater, CommandHandler
+# from telegram.ext import Updater, CommandHandler
+
+from mmpy_bot import settings, bot
+from mmpy_bot.bot import respond_to
 import sys, random, string
 from logging import getLogger, DEBUG, WARNING, INFO, basicConfig
 logger = getLogger(__name__)
 
 from yaml import load
 from argparse import ArgumentParser
-from functools import wraps
+
+from common import logWrap
 
 from wemo import devicemanager
 
-def logWrap(func):
-    @wraps(func)
-    def log(*args, **kwargs):
-        logger.debug('Function called: {}'.format(func.__name__))
-        return func(*args, **kwargs)
-    return log
+@logWrap
+@respond_to('start')
+def start(message):
+    response="Hi, I'm a bot."
+    logger.debug('Message: {}'.format(message))
+    logger.debug('Response: {}'.format(response))
+    message.reply(response)
 
-class Pybot:
-    __updater = None
-    __dispatcher = None
-    __devices = None
+@logWrap
+@respond_to('uptime')
+def uptime(message):
+    import subprocess
+    response = subprocess.check_output('uptime').decode()
+    message.reply(response)
 
-    __secret = None
-    __locked = True
+@logWrap
+@respond_to('switchstate (.*)')
+def getSwitchState(message, switch):
+    switchname = switch.strip()
+    switchstate = devicemanager.getStateByName(switchname)
+    reponse = '{} is {}'.format(switchname, switchstate)
+    message.reply(reponse)
 
-    def __init__(self):
-        # Create a random secret
-        self.__secret = ''.join(random.choice(string.ascii_lowercase) for i in range(10))
+@logWrap
+@respond_to('toggleswitch (.*)')
+def toggleSwitch(message, switch):
+    switchname = switch.strip()
+    switchstate_old = devicemanager.getStateByName(switchname)
+    devicemanager.toggleDevicesByName(switchname)
+    switchstate_new = devicemanager.getStateByName(switchname)
+    response = 'Switched {} from {} to {}'.format(switchname, switchstate_old, switchstate_new)
+    message.reply(response)
 
-    def setUpdater(self, token):
-        self.__updater = Updater(token=token, use_context=True)
-
-    def setDispatcher(self, updater):
-        self.__dispatcher = self.__updater.dispatcher
-
-    def getUpdater(self):
-        return self.__updater
-
-    def getDispatcher(self):
-        return self.__dispatcher
-
-    def getSecret(self):
-        return self.__secret
-
-    @logWrap
-    def start(self, update, context):
-        message="Hi, I'm a bot. Tell me a secret!"
-        logger.debug('Update: {}'.format(update))
-        logger.debug('Context: {}'.format(context))
-        logger.debug('Response: {}'.format(message))
-        context.bot.send_message(chat_id=update.effective_chat.id, text=message)
-
-    def secret(self, update, context):
-        secret = update.message.text.replace('/secret','').strip()
-        if secret == self.__secret:
-            self.__locked = False
-
-    @logWrap
-    def help(self, update, context):
-        message="HELP:\n/start - Welcome\n/help - display this help message\n/uptime - get host uptime\n/switches - Show switches\n/toggleswitch $switch - toggle a switch\n/getswitchstate $switch"
-        self.respond(update, context, message)
-
-    @logWrap
-    def uptime(self, update, context):
-        import subprocess
-        message = subprocess.check_output('uptime').decode()
-        self.respond(update, context, message)
-
-    @logWrap
-    def getSwitchState(self, update, context):
-        switchname = update.message.text.replace('/getswitchstate ','').strip()
-        switchstate = devicemanager.getStateByName(switchname)
-        message = '{} is {}'.format(switchname, switchstate)
-        self.respond(update, context, message)
-
-    @logWrap
-    def toggleSwitch(self, update, context):
-        switchname = update.message.text.replace('/toggleswitch ','').strip()
-        switchstate_old = devicemanager.getStateByName(switchname)
-        devicemanager.toggleDevicesByName(switchname)
-        switchstate_new = devicemanager.getStateByName(switchname)
-        message = 'Switched {} from {} to {}'.format(switchname, switchstate_old, switchstate_new)
-        self.respond(update, context, message)
-
-    @logWrap
-    def switches(self, update, context):
-        message = 'Discovered Devices: \n'
-        message += '\n'.join(devicemanager.listDevicesByName())
-        self.respond(update, context, message)
-
-    # helper function to make logging ever so slightly easier
-    def respond(self, update, context, message):
-        if not self.__locked:
-            logger.debug('Update: {}'.format(update))
-            logger.debug('Context: {}'.format(context))
-            logger.debug('Response: {}'.format(message))
-            context.bot.send_message(chat_id=update.effective_chat.id, text=message)
-        else:
-            logger.info('Bot is locked but someone tried to talk to me')
-            logger.debug('Update: {}'.format(update))
-            logger.debug('Context: {}'.format(context))
-            logger.debug('Response: {}'.format(message))
-
-    @logWrap
-    def run(self):
-        start_handler = CommandHandler('start', self.start)
-        help_handler = CommandHandler('help', self.help)
-        uptime_handler = CommandHandler('uptime', self.uptime)
-        getswitchstate_handler = CommandHandler('getswitchstate', self.getSwitchState)
-        toggleswitch_handler = CommandHandler('toggleswitch', self.toggleSwitch)
-        switches_handler = CommandHandler('switches', self.switches)
-        secret_handler = CommandHandler('secret', self.secret)
-        self.__dispatcher.add_handler(start_handler)
-        self.__dispatcher.add_handler(help_handler)
-        self.__dispatcher.add_handler(uptime_handler)
-        self.__dispatcher.add_handler(toggleswitch_handler)
-        self.__dispatcher.add_handler(getswitchstate_handler)
-        self.__dispatcher.add_handler(switches_handler)
-        self.__dispatcher.add_handler(secret_handler)
-        self.__updater.start_polling()
+@logWrap
+@respond_to('switches')
+def switches(message):
+    response = 'Discovered Devices: \n'
+    response += '\n'.join(devicemanager.listDevicesByName())
+    message.reply(response)
 
 try:
     from yaml import CLoader as Loader
@@ -128,16 +61,12 @@ except:
     from yaml import Loader
 
 parser = ArgumentParser(description="This is here mostly for Docker :)")
-parser.add_argument('--token', metavar='t', type=str, help='The telegram API token')
 parser.add_argument('--loglevel', metavar='l', type=str, help='Log Level [INFO, DEBUG, WARNING]')
 parser.add_argument('--verbose', action='store_true', help='Log to stdout')
 args = parser.parse_args()
 
-if args.token:
-    data = {'token': args.token}
-else:
-    with open('config.yml', 'r') as f:
-        data = load(f, Loader=Loader)
+with open('config.yml', 'r') as f:
+    data = load(f, Loader=Loader)
 
 if args.loglevel:
     levels = {
@@ -147,10 +76,17 @@ if args.loglevel:
     }
     logger.setLevel(levels[args.loglevel])
 
-if args.verbose:
-    basicConfig(stream=sys.stdout)
-pybot = Pybot()
-logger.info(pybot.getSecret())
-pybot.setUpdater(data['token'])
-pybot.setDispatcher(pybot.getUpdater())
+logger.debug('Config loaded')
+
+mmpy_bot_settings = data.get('mmpy_bot')
+for k in mmpy_bot_settings.keys():
+    setattr(settings, k, mmpy_bot_settings.get(k))
+    logger.debug('Setting {} to {}'.format(k, getattr(settings, k)))
+
+logger.debug('Initialising bot...')
+
+bot.settings = settings
+pybot = bot.Bot()
 pybot.run()
+
+logger.info('Bot running... happy chatting!')
